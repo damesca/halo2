@@ -33,6 +33,7 @@ use crate::{
     transcript::{EncodedChallenge, TranscriptWrite},
 };
 use group::prime::PrimeCurveAffine;
+use std::time::Instant;
 
 /// This creates a proof for the provided `circuit` when given the public
 /// parameters `params` and the proving key [`ProvingKey`] that was
@@ -83,6 +84,7 @@ where
         pub instance_polys: Vec<Polynomial<C::Scalar, Coeff>>,
     }
 
+    let now = Instant::now();
     let instance: Vec<InstanceSingle<Scheme::Curve>> = instances
         .iter()
         .map(|instance| -> Result<InstanceSingle<Scheme::Curve>, Error> {
@@ -137,6 +139,9 @@ where
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
+
+    let elapsed = now.elapsed();
+    println!("% instance: {:?}", elapsed);
 
     #[derive(Clone)]
     struct AdviceSingle<C: CurveAffine, B: Basis> {
@@ -288,6 +293,7 @@ where
         }
     }
 
+    let now = Instant::now();
     let (advice, challenges) = {
         let mut advice = vec![
             AdviceSingle::<Scheme::Curve, LagrangeCoeff> {
@@ -407,6 +413,9 @@ where
         (advice, challenges)
     };
 
+    let elapsed = now.elapsed();
+    println!("% (advice, challenge): {:?}", elapsed);
+
     // Sample theta challenge for keeping lookup columns linearly independent
     let theta: ChallengeTheta<_> = transcript.squeeze_challenge_scalar();
 
@@ -443,6 +452,7 @@ where
     // Sample gamma challenge
     let gamma: ChallengeGamma<_> = transcript.squeeze_challenge_scalar();
 
+    let now = Instant::now();
     // Commit to permutations.
     let permutations: Vec<permutation::prover::Committed<Scheme::Curve>> = instance
         .iter()
@@ -462,6 +472,8 @@ where
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let elapsed = now.elapsed();
+    println!("% commit-permutations: {:?}", elapsed);
 
     let lookups: Vec<Vec<lookup::prover::Committed<Scheme::Curve>>> = lookups
         .into_iter()
@@ -474,8 +486,11 @@ where
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    let now = Instant::now();
     // Commit to the vanishing argument's random polynomial for blinding h(x_3)
     let vanishing = vanishing::Argument::commit(params, domain, &mut rng, transcript)?;
+    let elapsed = now.elapsed();
+    println!("% commit-vanishing: {:?}", elapsed);
 
     // Obtain challenge for keeping all separate gates linearly independent
     let y: ChallengeY<_> = transcript.squeeze_challenge_scalar();
@@ -603,6 +618,7 @@ where
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    let now = Instant::now();
     let instances = instance
         .iter()
         .zip(advice.iter())
@@ -651,8 +667,15 @@ where
         // We query the h(X) polynomial at x
         .chain(vanishing.open(x));
 
+    let elapsed = now.elapsed();
+    println!("% instance-final: {:?}", elapsed);
+    
+    let now = Instant::now();
     let prover = P::new(params);
-    prover
+    let res = prover
         .create_proof(rng, transcript, instances)
-        .map_err(|_| Error::ConstraintSystemFailure)
+        .map_err(|_| Error::ConstraintSystemFailure);
+    let elapsed = now.elapsed();
+    println!("% prover.create_proof: {:?}", elapsed);
+    res
 }
