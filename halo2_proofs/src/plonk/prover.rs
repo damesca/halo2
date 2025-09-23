@@ -415,6 +415,7 @@ where
     let elapsed = now.elapsed();
     println!("% (advice, challenge): {:?}", elapsed);
 
+    let now = Instant::now();
     // Sample theta challenge for keeping lookup columns linearly independent
     let theta: ChallengeTheta<_> = transcript.squeeze_challenge_scalar();
 
@@ -445,11 +446,18 @@ where
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    let elapsed = now.elapsed();
+    println!("% challenge and lookups: {:?}", elapsed);
+
+    let now = Instant::now();
     // Sample beta challenge
     let beta: ChallengeBeta<_> = transcript.squeeze_challenge_scalar();
 
     // Sample gamma challenge
     let gamma: ChallengeGamma<_> = transcript.squeeze_challenge_scalar();
+
+    let elapsed = now.elapsed();
+    println!("% beta and gamma challenges: {:?}", elapsed);
 
     let now = Instant::now();
     // Commit to permutations.
@@ -474,6 +482,7 @@ where
     let elapsed = now.elapsed();
     println!("% commit-permutations: {:?}", elapsed);
 
+    let now = Instant::now();
     let lookups: Vec<Vec<lookup::prover::Committed<Scheme::Curve>>> = lookups
         .into_iter()
         .map(|lookups| -> Result<Vec<_>, _> {
@@ -484,6 +493,8 @@ where
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let elapsed = now.elapsed();
+    println!("% lookups: {:?}", elapsed);
 
     let now = Instant::now();
     // Commit to the vanishing argument's random polynomial for blinding h(x_3)
@@ -491,9 +502,13 @@ where
     let elapsed = now.elapsed();
     println!("% commit-vanishing: {:?}", elapsed);
 
+    let now = Instant::now();
     // Obtain challenge for keeping all separate gates linearly independent
     let y: ChallengeY<_> = transcript.squeeze_challenge_scalar();
+    let elapsed = now.elapsed();
+    println!("% challenge y: {:?}", elapsed);
 
+    let now = Instant::now();
     // Calculate the advice polys
     let advice: Vec<AdviceSingle<Scheme::Curve, Coeff>> = advice
         .into_iter()
@@ -512,7 +527,10 @@ where
             },
         )
         .collect();
+    let elapsed = now.elapsed();
+    println!("% advice poly: {:?}", elapsed);
 
+    let now = Instant::now();
     // Evaluate the h(X) polynomial
     let h_poly = pk.ev.evaluate_h(
         pk,
@@ -532,13 +550,19 @@ where
         &lookups,
         &permutations,
     );
+    let elapsed = now.elapsed();
+    println!("% eval h poly: {:?}", elapsed);
 
+    let now = Instant::now();
     // Construct the vanishing argument's h(X) commitments
     let vanishing = vanishing.construct(params, domain, h_poly, &mut rng, transcript)?;
+    let elapsed = now.elapsed();
+    println!("% vanishing argument's h(X) comm: {:?}", elapsed);
 
     let x: ChallengeX<_> = transcript.squeeze_challenge_scalar();
     let xn = x.pow(&[params.n() as u64, 0, 0, 0]);
 
+    let now = Instant::now();
     if P::QUERY_INSTANCE {
         // Compute and hash instance evals for each circuit instance
         for instance in instance.iter() {
@@ -560,7 +584,10 @@ where
             }
         }
     }
+    let elapsed = now.elapsed();
+    println!("% P::QUERY_INSTANCE: {:?}", elapsed);
 
+    let now = Instant::now();
     // Compute and hash advice evals for each circuit instance
     for advice in advice.iter() {
         // Evaluate polynomials at omega^i x
@@ -580,7 +607,10 @@ where
             transcript.write_scalar(*eval)?;
         }
     }
+    let elapsed = now.elapsed();
+    println!("% advice evals: {:?}", elapsed);
 
+    let now = Instant::now();
     // Compute and hash fixed evals (shared across all circuit instances)
     let fixed_evals: Vec<_> = meta
         .fixed_queries
@@ -589,12 +619,15 @@ where
             eval_polynomial(&pk.fixed_polys[column.index()], domain.rotate_omega(*x, at))
         })
         .collect();
+    let elapsed = now.elapsed();
+    println!("% fixed evals: {:?}", elapsed);
 
     // Hash each fixed column evaluation
     for eval in fixed_evals.iter() {
         transcript.write_scalar(*eval)?;
     }
 
+    let now = Instant::now();
     let vanishing = vanishing.evaluate(x, xn, domain, transcript)?;
 
     // Evaluate common permutation data
@@ -616,6 +649,8 @@ where
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let elapsed = now.elapsed();
+    println!("% eval vanishing, perm, lookups: {:?}", elapsed);
 
     let now = Instant::now();
     let instances = instance
